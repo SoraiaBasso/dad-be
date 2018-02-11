@@ -1,0 +1,33 @@
+{
+  "name": "project_server",
+  "version": "1.0.0",
+  "description": "servidor do projecto dad",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "soraia",
+  "license": "ISC",
+  "dependencies": {
+    "bcrypt": "^1.0.3",
+    "bcrypt-nodejs": "0.0.3",
+    "body-parser": "^1.18.2",
+    "express": "^4.16.2",
+    "express-bearer-token": "^2.1.1",
+    "express-fileupload": "^0.4.0",
+    "knex": "^0.14.2",
+    "mongoose": "^5.0.1",
+    "mongoose-auto-increment": "^5.0.1",
+    "mysql": "^2.15.0",
+    "nodemailer": "^4.4.2",
+    "oauth2-server": "^3.0.0",
+    "passport": "^0.4.0",
+    "passport-auth0": "^0.6.1",
+    "passport-custom": "^1.0.5",
+    "passport-http-bearer": "^1.0.1",
+    "passport-local": "^1.0.0",
+    "sha1": "^1.1.1",
+    "socket.io": "^2.0.4",
+    "socketio-auth": "^0.1.0"
+  }
+}
