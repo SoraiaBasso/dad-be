@@ -111,6 +111,8 @@ db.once('open', function() {
     },
     team1_cardpoints: Number,
     team2_cardpoints: Number,
+    team1_cheating: Boolean,
+    team2_cheating: Boolean,
     created_by: Object,
     created_by_id: Number,
     deck_used: Number,

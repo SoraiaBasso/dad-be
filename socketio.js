@@ -65,6 +65,10 @@ module.exports = function(server, store, Game, cardOptions, cardSuites) {
 			}
 			if (isInGame) {
 				//console.log("is in game!");
+				delete currentGame.team1_cheating;
+				delete currentGame.team2_cheating;
+
+
 				activeGames.push(currentGame);
 			}
 		}
@@ -518,6 +522,8 @@ module.exports = function(server, store, Game, cardOptions, cardSuites) {
 
 					game.team1_cardpoints = 0;
 					game.team2_cardpoints = 0;
+					game.team1_cheating = false;
+					game.team2_cheating = false;
 
 
 
@@ -685,8 +691,6 @@ module.exports = function(server, store, Game, cardOptions, cardSuites) {
 					//game.markModified('cardTrump');
 
 				} else {
-
-
 					var cardIndex = null;
 
 
@@ -726,6 +730,38 @@ module.exports = function(server, store, Game, cardOptions, cardSuites) {
 				//se não houver cartas na mesa, então a primeira carta é o naipe do jogo
 				if (!hasCards) {
 					game.suiteInGame = data.clickedCard.cardSuite;
+				} else{
+					if((user.teamId == 1 && game.team1_cheating) ||
+						(user.teamId == 2 && game.team2_cheating)) {
+						//se ele jogar carta diferente do naipe da mesa
+						if(card.cardSuite != game.suiteInGame){
+					//procurar cartas do naipe da mesa na mao dele
+							console("A equipa já está a fazer batota! Passar à frente se fez batota...");
+						}else{
+							for (var i = 0; i < user.cards.length; i++) {
+								var suiteCard = user.cards[i];
+								if(suiteCard.cardSuite == game.suiteInGame) {
+									//BATOTA
+									console("Este sacana fez batota!");
+									if(user.teamId == 1) {
+										game.team1_cheating = true;
+									}else{
+										game.team2_cheating = true;
+									}
+									break;
+								}
+
+							}
+
+						}
+
+
+
+
+					}
+
+
+					//se encontrou, batota
 				}
 
 				//Por carta na mesa
@@ -1082,19 +1118,17 @@ pontos aos jogadores da equipa vencedora. */
 						console.log('game.team1_cardpoints')
 						console.log(game.team1_cardpoints)
 							//atribuir pontos finais
-						if (61 <= game.team1_cardpoints && game.team1_cardpoints <= 90) {
+						if (game.team1_cardpoints >= 61 &&
+						 game.team1_cardpoints <= 90) {
 							console.log('61 <= game.team1_cardpoints <= 90')
 							team1Points = 1;
-						} else if (91 <= game.team1_cardpoints <= 119) {
+						} else if (game.team1_cardpoints >= 91 &&
+						 game.team1_cardpoints <= 119) {
 							console.log('91 <= game.team1_cardpoints <= 119')
 							team1Points = 2;
 						} else if (game.team1_cardpoints == 120) {
 							console.log('game.team1_cardpoints == 120')
 							team1Points = 4;
-						} else if (game.team1_cardpoints == game.team2_cardpoints == 60) {
-							console.log('game.team1_cardpoints == game.team2_cardpoints == 60')
-							team1Points = 0;
-							team2Points = 0;
 						}
 
 					} else if(teamWinner == 2){ 
@@ -1110,12 +1144,12 @@ pontos aos jogadores da equipa vencedora. */
 						} else if (game.team2_cardpoints == 120) {
 							console.log('game.team2_cardpoints == 120')
 							team2Points = 4;
-						} else if (game.team1_cardpoints == game.team2_cardpoints == 60) {
-							console.log('game.team1_cardpoints == game.team2_cardpoints == 60')
+						}
+					}  else if (teamWinner == 0) {
+							console.log('As Equipas empataram!');
 							team1Points = 0;
 							team2Points = 0;
 						}
-					} 
 
 					
 					//debug
