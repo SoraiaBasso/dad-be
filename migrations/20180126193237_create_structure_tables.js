@@ -14,6 +14,8 @@ exports.up = function(knex, Promise) {
 			table.integer('total_points').notNullable();
 			table.integer('total_games_played').notNullable();
 			table.string('token');
+			table.boolean('confirmed');
+			table.string('confirmation_token');
 			table.timestamps(false, true)
 		}),
 

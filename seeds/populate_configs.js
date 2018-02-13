@@ -5,7 +5,7 @@ exports.seed = function(knex, Promise) {
     .then(function () {
       
       return knex('config').insert(
-        {platform_email: 'blackjack.projectdad@gmail.com', platform_email_properties: '', img_base_path: ''}
+        {platform_email: 'dad.sueca@gmail.com', platform_email_properties: '', img_base_path: ''}
       );
     });
 };

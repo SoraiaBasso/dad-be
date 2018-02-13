@@ -6,69 +6,280 @@ module.exports = function(app, transporter, store, passport) {
     const status = !err.code ? 500 : err.code;
     const message = !err.message ? err : err.message;
 
+    console.error(message);
+
     res.status(status).send(message);
   }
+
+  const crypto = require('crypto');
+
+  var bcrypt = require("bcrypt");
+
+  const sha1 = require('sha1');
 
 
 
   //Rota para criar um utilizador
   app.post('/api/users/create', (req, res) => {
     console.log(req); //Request, o que veio
-    store
-      .createUser({
-        //req.body => onde estão os dados
-        name: req.body.name,
-        email: req.body.email,
-        nickname: req.body.nickname,
-        password: req.body.password
-      })
-      .then(() => {
 
-        var mailOptions = {
-          from: 'blackjack.projectdad@gmail.com',
-          to: req.body.email,
-          subject: 'Blackjack Account Creation',
-          text: 'Please, click the link to confirm your subscription.',
-          html: '<p>Please, click the link to confirm your subscription.</p>'
-        }
+    //criar uma hash e armazenar na bd
+    //http://46.101.25.53:8080/email-confirmation/1/bg45ehge54h5435w4356h34w5hy6754jy754j67
+    //http://localhost:7555/email-confirmation/1/bg45ehge54h5435w4356h34w5hy6754jy754j67
 
 
-        transporter.sendMail(mailOptions, function(err, info) {
-          if (err)
-            console.log(err)
-          else
-            console.log(info);
+    crypto.randomBytes(48, function(err, buffer) {
+      var confirmation_token = buffer.toString('hex');
+
+      store
+        .createUser({
+          //req.body => onde estão os dados
+          name: req.body.name,
+          email: req.body.email,
+          nickname: req.body.nickname,
+          password: req.body.password,
+          confirmation_token: confirmation_token
+        })
+        .then((ids) => {
+          console.log(ids);
+          var id = ids[0];
+
+          //adicionar ao email um link com o porto + id + hash
+          var mailOptions = {
+            from: 'dad.sueca@gmail.com',
+            to: req.body.email,
+            subject: '"Sueca" Account Creation',
+            text: 'Please, click the link to confirm your subscription.\n'+
+                  'http://localhost:7555/email-confirmation/'+id+'/'+confirmation_token,
+            html: '<p>Please, click the link to confirm your subscription.</p>'+
+                  '<p><a href="http://localhost:7555/email-confirmation/'+id+'/'+confirmation_token+'">email confirmation link</a></p>'
+
+
+            
+          }
+
+
+          transporter.sendMail(mailOptions, function(err, info) {
+            if (err)
+              console.log(err)
+            else
+              console.log(info);
+          });
+
+          res.sendStatus(200)
+        })
+        .catch((err) => {
+          error = {
+            code: err.code,
+            message: err.sqlMessage
+          };
+
+
+          if (!error.message) {
+            error.message = 'Unexpected Error!';
+            error.message = err;
+          }
+          console.log(error);
+
+          res.status(500).send(error);
         });
 
-        res.sendStatus(200)
-      })
-      .catch((err) => {
-        error = {
-          code: err.code,
-          message: err.sqlMessage
-        };
+    });
+
+  });
+
+  app.get('/email-confirmation/:id/:confirmation_token', function(req, res, next) {
+    store.getUserById(req.params.id).then((users) => {
+      user = users[0];
+      console.log(user);
+      if(!user){
+        res.status(400).send("Wrong User Id!");
+        return;
+      }
 
 
-        if (!error.message) {
-          error.message = 'Unexpected Error!';
-          error.message = err;
+
+      if(req.params.confirmation_token == user.confirmation_token){
+        store.activateUser(req.params.id).then(() => {
+          res.redirect('http://165.227.238.36:8080');
+          return;
+        });
+      }else{
+        res.status(400).send("Wrong Confirmation Token!");
+      }
+
+    });
+  });
+
+  //Password reset
+    app.post('/password/reset', (req, res) => {
+
+      console.log('API PASSWORD RESETS WITH REQUEST');
+      console.log(req.body.email);
+
+    
+    crypto.randomBytes(48, function(err, buffer) {
+      var reset_password_token = buffer.toString('hex');
+
+      store.savePasswordResetDetails({
+          email: req.body.email,
+          token: reset_password_token
+        })
+        .then((data) => {
+
+          console.log('Email and token saved:');
+          console.log(data);
+          
+          var mailOptions = {
+            from: 'dad.sueca@gmail.com',
+            to: req.body.email,
+            subject: 'Sueca Password Reset',
+            text: 'Please, click the link to reset your password.\n'+
+                  'http://localhost:7555/password-reset/'+reset_password_token,
+            html: '<p>Please, click the link to reset your password.</p>'+
+                  '<p><a href="http://localhost:7555/password-reset/'+reset_password_token+'">password reset link</a></p>'
+
+          }
+
+
+          transporter.sendMail(mailOptions, function(err, info) {
+            if (err)
+              console.log(err)
+            else
+              console.log(info);
+          });
+
+          res.sendStatus(200)
+        })
+        .catch((err) => {
+          error = {
+            code: err.code,
+            message: err.sqlMessage
+          };
+
+
+          if (!error.message) {
+            error.message = 'Unexpected Error!';
+            error.message = err;
+          }
+          console.log(error);
+
+          res.status(500).send(error);
+        });
+
+    });
+
+  });
+
+
+  app.get('/password-reset/:reset_password_token', function(req, res, next) {
+
+    console.log('API PASSWORD RESET - redirect to client');
+    console.log(req.params.reset_password_token);
+
+    res.redirect('http://localhost:8080/#/passwordReset/'+req.params.reset_password_token);
+
+/*
+    console.log('API PASSWORD RESET - get email from table');
+    console.log(req.params.reset_password_token);
+    store.getEmailByTokenFromPasswordResets(req.params.reset_password_token).then((emails) => {
+      email = emails[0];
+      console.log(emails);
+      if(!emails){
+        res.status(400).send("Wrong User Id!");
+        return;
+      }
+
+
+
+      if(req.params.reset_password_token == email.email){
+         // res.redirect('http://165.227.238.36:8080');
+
+        store.activateUser(req.params.id).then(() => {
+          res.redirect('http://165.227.238.36:8080');
+          return;
+        });
+      
+      }else{
+        res.status(400).send("Wrong Confirmation Token!");
+      }
+
+    });
+    */
+  });
+
+
+  app.post('/changePassword', function(req, res, next) {
+
+    console.log('API PASSWORD RESET - change password');
+    console.log(req.body.password);
+    console.log(req.body.token);
+
+    if(!req.body.password || !req.body.token){
+      res.status(400).send("Required Parameters not received!");
+      return;
+    }
+
+
+    store.getEmailByTokenFromPasswordResets(req.body.token).then((emails) => {
+      var email = emails[0];
+      console.log(emails);
+      if(!email){
+        res.status(400).send("Email for token not found!");
+        return;
+      }
+
+      store.getUserByEmail(email.email).then((users) => {
+        var user = users[0];
+
+        if(!user){
+          res.status(500).send("User for given email not found!");
+          return;
         }
-        console.log(error);
 
-        res.status(500).send(error);
+        store.changeUserPassword(user.id, req.body.password).then(() => {
+
+          store.removeResetToken(email.email).then(() =>{
+            res.send({response: "Password Changed!"});
+            return;
+          });
+
+        });
+
       });
-  })
+
+    });
+  });
+
 
   //Esta Rota é apenas para testar!
   app.get('/', function(req, res, next) {
     //no chrome ou postman, escrever http://localhost:7555
-    res.send('Rota Teste');
+    res.send('Servidor Backend do Projecto Dad-2018. Rota para teste.');
   });
 
   //Rota para login
-  app.post('/login', passport.authenticate('local'), function(req, res) {
+  /*app.post('/login', passport.authenticate('local'), function(req, res,) {
     res.send(req.user);
+  });*/
+  app.post('/login', function(req, res, next) {
+    passport.authenticate('local', function(err, user, info) {
+      if (err) {
+        return next(err)
+      }
+      if (!user) {
+        return res.status(401).json({
+          message: info.message
+        })
+      }
+      res.json(user);
+    })(req, res, function(req, res, ) {
+      res.send(req.user);
+    });
   });
+
+
+
 
   //Rota para logout
   app.post('/logout', function(req, res) {
@@ -132,8 +343,8 @@ module.exports = function(app, transporter, store, passport) {
   app.put('/api/user/edit/:id', passport.authenticate('bearer'), (req, res) => {
 
     console.log(req);
-    const user = new User(req.params.id, req.body.name, req.body.email,
-      req.body.nickname, req.body.password);
+    var user = {id: req.params.id, name: req.body.name, email: req.body.email,
+      nickname: req.body.nickname};
 
     store.editUser(user).then(() => res.sendStatus(200));
 
@@ -166,8 +377,8 @@ module.exports = function(app, transporter, store, passport) {
   }), (req, res) => {
 
     //console.log(req.params.id);
-    const user = new User(req.params.id, req.body.name, req.body.email,
-      req.body.nickname, req.body.password);
+    var user = {id: req.params.id, email: req.body.email,
+      nickname: req.body.nickname};
 
     store.
     editAdmin(user).then(() => res.sendStatus(200))
@@ -198,16 +409,22 @@ module.exports = function(app, transporter, store, passport) {
       console.log(req.params.id);
       console.log(req.body.token);
 
-      store.
-      deleteUser(req.params.id).then(() => {
-        store.getUserById(req.params.id).then((user) => {
-          user = user[0];
+      store.getUserById(req.params.id).then((user) => {
+        user = user[0];
+
+        if(user.admin){
+          res.status(400).send("Can't delete Admin!");
+          return;
+        }
+
+        store.
+        deleteUser(req.params.id).then(() => {
 
           var mailOptions = {
-            from: 'blackjack.projectdad@gmail.com',
+            from: 'dad.sueca@gmail.com',
             to: user.email,
-            subject: 'Blackjack Account Deleted',
-            text: 'Your account has been deleted. You have been permanently excluded from Blackjack.'
+            subject: 'Sueca Account Deleted',
+            text: 'Your account has been deleted. You have been permanently excluded from Sueca.'
             //html: '<p>Please, click the link to confirm your subscription.</p>'
           }
 
@@ -231,15 +448,20 @@ module.exports = function(app, transporter, store, passport) {
     failWithError: true
   }), (req, res) => {
     console.log(req.params.id, req.body.reason_blocked);
-    store.
-    blockUser(req.params.id, req.body.reason_blocked).then(() => {
-      store.getUserById(req.params.id).then((user) => {
-        user = user[0];
+    store.getUserById(req.params.id).then((user) => {
+      user = user[0];
+
+        if(user.admin){
+          res.status(400).send("Can't block Admin!");
+          return;
+        }
+
+      store.blockUser(req.params.id, req.body.reason_blocked).then(() => {
 
         var mailOptions = {
-          from: 'blackjack.projectdad@gmail.com',
+          from: 'dad.sueca@gmail.com',
           to: user.email,
-          subject: 'Blackjack Account Blocked',
+          subject: 'Sueca Account Blocked',
           text: 'Your account has been blocked. Reason:' + user.reason_blocked
           //html: '<p>Please, click the link to confirm your subscription.</p>'
         }
@@ -258,7 +480,8 @@ module.exports = function(app, transporter, store, passport) {
   }, errorFunction);
 
   //Rota para o admin desbloquear o user
-  app.put('/api/admin/unblock/user/:id', passport.authenticate('bearer'), /* passport.authenticate('admin', { failWithError: true }),*/ (req, res) => {
+  app.put('/api/admin/unblock/user/:id', passport.authenticate('bearer'), 
+   passport.authenticate('admin', { failWithError: true }), (req, res) => {
     console.log(req.params.id, req.body.reason_reactivated);
     store.
     unblockUser(req.params.id, req.body.reason_reactivated).then(() => {
@@ -292,39 +515,32 @@ module.exports = function(app, transporter, store, passport) {
   //Rota para devolver o total de jogadores na plataforma
   app.get('/api/statistics/numberOfPlayers', function(req, res, next) {
 
-    /*store.getTotalNumberOfPlayers().then((totals) => {
-
-      total = totals[0];
-      res.send(total);
-
-    });*/
-
     store.getTotalNumberOfPlayers().then((totals) => {
-      console.log(totals);
-
-      /*  total = totals[0];
-        console.log(total)
-        total = total['COUNT']
-        console.log(total)*/
 
       total = totals[0];
-      //console.log (total)
       res.send(total);
-      /*total = totals[0];
-      res.send(total);*/
 
     });
+
+  /*  store.getTotalNumberOfPlayers().then((totals) => {
+      console.log(totals);
+
+
+      total = totals[0];
+      res.send(total);
+
+    }); */
   });
 
-  //api/statistics/totalGamesPlayed
   //Rota para devolver o total de jogos jogados
   app.get('/api/statistics/totalGamesPlayed', function(req, res, next) {
 
-    //console.log("Index antes do getTotalGamesPlayed");
+    console.log("ENTROU NA API totalGamesPlayed");
 
     store.getTotalGamesPlayed().then((totals) => {
       total = totals[0];
-      //console.log (total)
+      console.log ('Total de jogos jogados recebido do store:')
+      console.log (total)
       res.send(total);
 
     });
@@ -344,12 +560,13 @@ module.exports = function(app, transporter, store, passport) {
     })
   });
 
-  //api/statistics/topFiveByAverage
-
   //Devolve o top cinco jogadores com melhor media
   app.get('/api/statistics/topFiveByAverage', function(req, res, next) {
     store.getTopFiveByAverage().then((users) => {
-      res.send(users);
+      console.log("topFiveByAverage");
+      console.log("topFiveByAverage");
+      console.log(users[0]);
+      res.send(users[0]);
     })
   });
 
@@ -357,9 +574,10 @@ module.exports = function(app, transporter, store, passport) {
   //Devolve o numero de vitorias de um user
   app.get('/api/statistics/user/totalWins/:id', passport.authenticate('bearer'), function(req, res, next) {
 
-    store.getUserTotalWins().then((totals) => {
-      total = totals[0];
-      //console.log (total)
+    store.getUserTotalWins(req.params.id).then((totals) => {
+      total = totals[0][0];
+      console.log ("totalWins");
+      console.log (total)
       res.send(total);
     })
 
@@ -369,12 +587,13 @@ module.exports = function(app, transporter, store, passport) {
   //Devolve o numero de derrotas de um user
   app.get('/api/statistics/user/totalLosts/:id', passport.authenticate('bearer'), function(req, res, next) {
 
-    store.getUserTotalLosts().then((totals) => {
-      console.log('ENTROU NA API TOTAL LOSTS')
-      total = totals[0];
-      //console.log (total)
+    store.getUserTotalLosts(req.params.id).then((totals) => {
+      console.log('ENTROU NA API TOTAL LOSTS');
+      total = totals[0][0];
+      console.log ("totalLosts")
+      console.log (total)
       res.send(total);
-    })
+    }) 
 
   });
 
@@ -382,17 +601,122 @@ module.exports = function(app, transporter, store, passport) {
   //Devolve o numero de EMPATES de um user
   app.get('/api/statistics/user/totalDraws/:id', passport.authenticate('bearer'), function(req, res, next) {
 
-    store.getUserTotalDraws().then((totals) => {
+    store.getUserTotalDraws(req.params.id).then((totals) => {
 
-      console.log('ENTROU NA API TOTAL daws')
-      total = totals[0];
-      //console.log (total)
+      console.log('ENTROU NA API TOTAL daws');
+      total = totals[0][0];
+      console.log (total);
       res.send(total);
     })
 
   });
 
+  //api/statistics/user/totalPoints/
+  //Devolve o numero de PONTOS de um user
+  app.get('/api/statistics/user/totalPoints/:id', passport.authenticate('bearer'), function(req, res, next) {
 
+    store.getUserTotalPoints(req.params.id).then((totals) => {
+
+      console.log('ENTROU NA API TOTAL POINTS');
+      total = totals[0][0];
+      console.log (total);
+      res.send(total);
+    })
+
+  });
+
+  //api/statistics/user/pointAverage/
+  //Devolve a media de PONTOS de um user
+  app.get('/api/statistics/user/pointAverage/:id', passport.authenticate('bearer'), function(req, res, next) {
+
+    store.getUserPointAverage(req.params.id).then((totals) => {
+
+      console.log('ENTROU NA API POINT AVERAGE');
+      total = totals[0][0];
+      console.log (total);
+      res.send(total);
+    })
+
+  });
+
+  //Rota para devolver os cinco jogadores com mais jogos jogados
+  app.get('/api/statistics/admin/usersStats', passport.authenticate('bearer'), 
+   passport.authenticate('admin', { failWithError: true }), function(req, res, next) {
+
+    store.getUsers().then((users) => {
+      var promises = [];
+
+      for (var i = 0; i < users.length; i++) {
+        var user = users[i];
+        var userPromises = []
+          userPromises.push(store.getUserById(user.id));
+          userPromises.push(store.getUserTotalWins(user.id));
+          userPromises.push(store.getUserTotalDraws(user.id));
+          userPromises.push(store.getUserTotalLosts(user.id));
+
+          var promise = Promise.all(userPromises).then(data => {
+            var userToSend= {}
+
+            for (var j = 0; j < data.length; j++) {
+              var field = data[j][0];
+              //console.log(field);
+
+
+              if(field.id){
+                userToSend.id = field.id;
+                userToSend.nickname = field.nickname;
+                userToSend.totalGamesPlayed =field.total_games_played; 
+              }else{
+                field = field[0];
+                //console.log(field);
+
+                if(field.totalWins !== undefined){
+                  userToSend.totalWins = field.totalWins;
+                }else if(field.totalLosts !== undefined){
+                  userToSend.totalLosts = field.totalLosts;
+                }else if(field.totalDraws !== undefined){
+                  userToSend.totalDraws = field.totalDraws;
+                }
+              }
+            }
+            //console.log("userToSend");
+            //console.log(userToSend);        
+            return Promise.resolve(userToSend);
+
+
+          });
+          promises.push(promise);
+            
+
+      }          
+
+      Promise.all(promises).then((usersToSend) => {
+          console.log("USERS");
+          console.log("USERS");
+          console.log(usersToSend);
+          res.send(usersToSend);
+        });
+
+    });
+
+  }, errorFunction); 
+
+
+  app.get('/api/statistics/admin/gamesHistoryData', passport.authenticate('bearer'), 
+   passport.authenticate('admin', { failWithError: true }), function(req, res, next) {
+
+    store.getGamesHistoryData().then((data) => {
+      console.log("gamesHistoryData");
+      console.log(data);
+      res.send(data);
+    })
+
+
+  }, errorFunction);
+
+
+
+ /*************************************UPLOAD E DOWNLOAD**************************************************/
 
   app.post('/upload', passport.authenticate('bearer'), function(req, res) {
 

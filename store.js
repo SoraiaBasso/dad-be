@@ -1,6 +1,8 @@
 const User = require('./model/User.js').User;
 const knex = require('knex')(require('./knexfile'));
+const crypto = require('crypto');
 const bcrypt = require("bcrypt");
+
 
 module.exports = function(cardOptions, cardSuites) {
   var module = {};
@@ -9,10 +11,13 @@ module.exports = function(cardOptions, cardSuites) {
     name,
     email,
     nickname,
-    password
+    password,
+    confirmation_token
   }) {
+
+
     console.log("Add user " + name + " with password " + password +
-      ", email " + email + " and nickname " + nickname)
+      ", email " + email + " nickname " + nickname + "confirmation token" + confirmation_token)
 
     return bcrypt.hash(password, 10).then(function(hash) {
       return knex('user').insert({
@@ -25,27 +30,58 @@ module.exports = function(cardOptions, cardSuites) {
         reason_blocked: '',
         reason_reactivated: '',
         total_points: 0,
-        total_games_played: 0
+        total_games_played: 0,
+        confirmed: 0,
+        confirmation_token: confirmation_token
       });
     });
 
   };
+  module.activateUser = function(userId) {
+    return knex('user').where('id', '=', userId)
+      .update({
+        confirmation_token: '',
+        confirmed: 1
+      });
+  };
   module.getPlatformEmail = function() {
     return knex('config').select('platform_email');
   };
+  //savePasswordResetDetails
+  module.savePasswordResetDetails = function(resetData) {
+    return knex('password_resets')
+      .insert({
+        email: resetData.email,
+        token: resetData.token
+      });
+  };
+  module.getEmailByTokenFromPasswordResets = function(token) {
+    return knex('password_resets').select('email').where('token', '=', token);
+  };
+  module.removeResetToken = function(email) {
+    return knex('password_resets')
+      .where('email', email)
+      .del();
+  };
+
+
+
   module.getUsers = function() {
 
     return knex('user').select('id', 'name', 'email', 'nickname', 'blocked', 'admin', 'reason_blocked', 'reason_reactivated', 'total_points', 'total_games_played').from('user');
 
   };
   module.getUser = function(username) {
-    return knex('user').select('id', 'name', 'email', 'nickname', 'password', 'admin', 'reason_blocked', 'reason_reactivated', 'total_points', 'total_games_played')
+    return knex('user').select('id', 'name', 'email', 'nickname', 'password', 'admin', 'reason_blocked', 'reason_reactivated', 'total_points', 'total_games_played', 'blocked', 'confirmed')
       .from('user').where('nickname', '=', username)
       .orWhere('email', '=', username);
   };
   module.getUserById = function(id) {
-    return knex('user').select('id', 'name', 'email', 'nickname', 'password', 'admin', 'reason_blocked', 'reason_reactivated', 'total_points', 'total_games_played')
+    return knex('user').select('id', 'name', 'email', 'nickname', 'password', 'admin', 'reason_blocked', 'reason_reactivated', 'total_points', 'total_games_played', 'confirmation_token')
       .from('user').where('id', '=', id);
+  };
+  module.getUserByEmail = function(email) {
+    return knex('user').select().where('email', '=', email);
   };
   module.getUserByToken = function(token) {
     return knex('user').select('id', 'name', 'email', 'nickname', 'password', 'admin').from('user').where('token', '=', token);
@@ -71,10 +107,17 @@ module.exports = function(cardOptions, cardSuites) {
         email: user.email
       })
   };
+  module.changeUserPassword = function(userId, password) {
+    return bcrypt.hash(password, 10).then(function(hash) {
+      return knex('user').where('id', '=', userId)
+        .update({
+          password: hash
+        });
+    });
+  };
   module.editAdmin = function(user) {
     return knex('user').where('id', '=', user.id)
       .update({
-        name: user.name,
         nickname: user.nickname,
         email: user.email
       })
@@ -115,17 +158,18 @@ module.exports = function(cardOptions, cardSuites) {
     });
   };
   /************************************STATISTICAS************************************/
-  module.getTotalNumberOfPlayers = function() {
+
+  //Total de jogadores na plataforma
+   module.getTotalNumberOfPlayers = function() {
+
     return knex('user').count('id as count');
-    /* knex('user').count('id')
-   
-     });*/
 
+  };
 
-  }; //TODO depois de criar a tabela
+  //Total de jogos jogados
   module.getTotalGamesPlayed = function() {
-    //so para devolver alguma coisa estou a usar tabela users
-    return knex('user').count('id as count');
+    //contar os game_id cujo estado é terminated
+    return knex('games').count('id as count').where('value', '=', 'terminated');
 
   };
   module.getTopFiveByNumOfGames = function() {
@@ -140,38 +184,113 @@ module.exports = function(cardOptions, cardSuites) {
   }; //TODO depois e criar tabela games e use games
   module.getTopFiveByAverage = function() {
 
+    return knex.raw('SELECT id as userId, nickname, total_points/total_games_played AS avg ' +
+                            'FROM user '+
+                            'ORDER BY avg desc '+
+                            'LIMIT 5');
+
+
+    
+
     //fazer uma subconsulta onde faço sum dos pontos de 1 jogador para tds os jogos que ja jogou
     //dividir pelo num de jogos pa fazer  a media (ou usar simplemnte o avg)
     //enviar os jogadores
+   /* return knex.select('*').avg('sumPoints').from(function() {
+                                                    this.sum('total_points as sumPoints')
+                                                    .from('user').join('game_user', 'user.id', 'game_user.user_id')
+                                                    .join('games', 'game_user.game_id', 'gams.id')
+                                                    .groupBy('sumPoints').as('t1')
+                                                    }) */
 
-    //so para devolver alguma coisa
-    return knex('user').orderBy('total_games_played', 'desc').limit('5');
-  }; //TODO depois e criar tabela games e use games
-  module.getUserTotalWins = function() {
+   /*var subcolumn = knex.avg('salary')
+    .from('employee')
+    .whereRaw('dept_no = e.dept_no')
+    .as('avg_sal_dept');
 
-    // return kenx('games').count(/*nome da coluna*/).where(/*nome da cluna com user_id*/, '=', id);
+    knex.select('e.lastname', 'e.salary', subcolumn)
+    .from('employee as e')
+    .whereRaw('dept_no = e.dept_no') */
 
-    //so para devolver alguma coisa estou a usar tabela users
-    return knex('user').count('id as count');
-
-  };
-  module.getUserTotalLosts = function() {
-
-    // return kenx('games').count(/*nome da coluna*/).where(/*nome da cluna com user_id*/, '=', id); e tb onde a coluna ta
-    //tabela games tenha valor 0 (tipo wins=0)
-
-    //so para devolver alguma coisa estou a usar tabela users
-    return knex('user').count('id as count');
-
-  };
-  module.getUserTotalDraws = function() {
-
-    // nao sei como vou contar isto
-
-    //so para devolver alguma coisa estou a usar tabela users
-    return knex('user').count('id as count');
+    
+  }; 
+  module.getUserTotalGamesPlayed = function(userId) {
+    //contar os game_id cujo estado é terminated
+    return knex('games').count('id as totalGamesPlayed').where('value', '=', 'terminated').andWhere('id', '=', userId);
 
   };
+  //TODO depois e criar tabela games e use games
+  module.getUserTotalWins = function(userId) {
+
+    return knex.raw('SELECT count(*) as totalWins ' +
+                            'FROM user u '+
+                            'JOIN game_user gu ON u.id=gu.user_id '+
+                            'JOIN games g ON gu.game_id=g.id '+
+                            'WHERE gu.team_number = g.team_winner '+
+                            'AND u.id = ?;', [userId]);
+
+    //O Where não funciona??
+    /*return knex('user').select()//count('user.id as count')
+                       .join('game_user', 'user.id', 'game_user.user_id')
+                       .join('games', 'game_user.game_id', 'games.id')
+                       .where('game_user.team_number', '=', 'games.team_winner');*/
+  };
+  module.getUserTotalLosts = function(userId) {
+
+    return knex.raw('SELECT count(*) as totalLosts ' +
+                            'FROM user u '+
+                            'JOIN game_user gu ON u.id=gu.user_id '+
+                            'JOIN games g ON gu.game_id=g.id '+
+                            'WHERE gu.team_number != g.team_winner '+
+                            'AND g.team_winner != 0 '+
+                            'AND u.id = ?;', [userId]);
+
+  };
+  module.getUserTotalDraws = function(userId) {
+
+    return knex.raw('SELECT count(*) as totalDraws ' +
+                            'FROM user u '+
+                            'JOIN game_user gu ON u.id=gu.user_id '+
+                            'JOIN games g ON gu.game_id=g.id '+
+                            'WHERE g.team_winner = 0 '+
+                            'AND u.id = ?;', [userId]);
+
+  };
+  module.getUserTotalPoints = function(userId) {
+
+    return knex.raw('SELECT total_points as totalPoints ' +
+                            'FROM user '+
+                            'WHERE id = ?;', [userId]);
+
+  };
+  module.getUserPointAverage = function(userId) {
+
+    return knex.raw('SELECT total_points/total_games_played as pointAverage ' +
+                            'FROM user '+
+                            'WHERE id = ?;', [userId]);
+
+  };
+
+  //getUsersStatsForAdmin
+  module.getGamesHistoryData = function() {
+
+    console.log('Entrou no getGamesHistoryData');
+
+    return knex.select(knex.raw("id, extract(DAY from g.created_at) as day"))
+      .count('* as count')
+      .from('games as g')
+      .groupByRaw("day")
+      .orderBy(knex.raw("day"));
+/*
+
+      var qry = db.knex
+  .select(db.knex.raw("array_agg(t2.id) as session_ids, extract('hour' from t2.start_timestamp) as hour"))
+  .count('*')
+  .from('sessions as t2')
+  .groupByRaw("extract('hour' from t2.start_timestamp)")
+  .orderBy(db.knex.raw("extract('hour' from t2.start_timestamp)"));*/
+    
+  };
+
   module.insertPathFile = function(pathFile, deckname) {
     return knex('decks').insert({
       name: deckname,

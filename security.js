@@ -24,17 +24,35 @@ module.exports = function(store) {
         store.getUser(username).then(user => {
             user = user[0];
             console.log(user);
+            var message = null;
             if (user === null || user === undefined) {
+                message = 'Incorrect credentials.';
+                console.log(message);
                 return done(null, false, {
-                    message: 'Incorrect credentials.'
+                    message: message
+                });
+            }
+            if (user.blocked) {
+                message = 'Your account has been blocked!';
+                console.log(message);
+                return done(null, false, {
+                    message: message
+                });
+            }
+            if (!user.confirmed) {
+                message = 'Please go to your email and activate your account.';
+                console.log(message);
+                return done(null, false, {
+                    message: message
                 });
             }
 
             bcrypt.compare(password, user.password).then(function(res) {
                 if (!res) {
-                    console.log('Invalid password!');
+                    message = 'Incorrect credentials.';
+                    console.log(message);
                     return done(null, false, {
-                        message: 'Incorrect credentials.'
+                        message: message
                     });
                 }
                 //gera o token e guarda-o na bd
@@ -121,22 +139,5 @@ module.exports = function(store) {
     module.getPassport = function() {
         return passport;
     };
-    /*
-    //classe com metodos 
-    class Security {
-        constructor() {
-            this.passport = passport;
-            this.authorize = this.passport.authenticate('bearer', {
-                session: false
-            });
-            this.initMiddleware = (server) => {
-                server.use(passport.initialize());
-            };
-            this.getPassport = () => {
-                return this.passport;
-            };
-        }
-    }*/
     return module;
 }
-//exports.Security = Security;

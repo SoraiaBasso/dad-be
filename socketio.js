@@ -226,6 +226,67 @@ module.exports = function(server, store, Game, cardOptions, cardSuites) {
 		});
 	}
 
+	createFinishedGame = function(team1Points, team2Points, game, teamWinner,
+									team_desconfiou, team_renunciou) {
+							//debug
+		console.log('SOcketIO - TEAM1_POINTS = ')
+		console.log(team1Points)
+		console.log('SOcketIO - TEAM2_POINTS = ')
+		console.log(team2Points)
+
+		var gameToCreate = {
+			id: game.id,
+			value: game.status,
+			team1_cardpoints: game.team1_cardpoints,
+			team2_cardpoints: game.team2_cardpoints,
+			team_winner: teamWinner,
+			team_desconfiou: team_desconfiou,
+			team_renunciou: team_renunciou,
+			team1_points: team1Points,
+			team2_points: team2Points,
+			created_by: game.created_by_id,
+			deck_used: game.deck_used
+		}
+
+		var usersToUpdate = [];
+
+		for (var i = 0; i < game.users.length; i++) {
+			var user = game.users[i];
+			var userTotalPoints = 0;
+			if (game.users[i].teamId == 1) {
+				userTotalPoints = team1Points;
+			} else {
+				userTotalPoints = team2Points;
+			}
+
+			usersToUpdate.push({
+				id: user.id,
+				total_points: userTotalPoints,
+				team_number: user.teamId
+			});
+
+		var room = "game_" + game.id + "_user_" + user.id;
+
+		io.sockets.in(room).emit('gameOver', {
+				game: game, teamWinner: teamWinner
+			});
+
+
+		}
+
+		store.createGame(gameToCreate).then(() => {
+			store.updateUsersEndOfGame(usersToUpdate, game.id);
+		})
+
+
+
+
+
+	}
+
+
+
+
 	require('socketio-auth')(io, {
 		authenticate: function(socket, data, callback) {
 			//get credentials sent by the client 
@@ -242,6 +303,34 @@ module.exports = function(server, store, Game, cardOptions, cardSuites) {
 					console.log("No User found for socket auth");
 					return callback(new Error("User not found"));
 				}
+				Game.find({
+					status: "active"
+				}, function(err, games) {
+					if (err) return console.error(err);
+
+					for (var i = 0; i < games.length; i++) {
+						var game = games[i];
+
+						for (var j = 0; j < game.users.length; j++) {
+							var userAux = game.users[j];
+							if(user.id == userAux.id){
+								console.log("User " + user.id + " is in game " + game.id);
+								var socketRoom = "game_" + game.id + "_user_" + user.id;
+								socket.join(socketRoom);
+
+							}
+						}
+
+
+					}
+
+
+
+
+				});
+
+
+
 				return callback(null, true);
 			});
 		}
@@ -333,7 +422,8 @@ module.exports = function(server, store, Game, cardOptions, cardSuites) {
 				return;
 			}
 			Game.findOne({
-				id: data.gameId
+				id: data.gameId,
+				status: "pending"
 			}, function(err, game) {
 				if (err) return console.error(err);
 
@@ -376,6 +466,38 @@ module.exports = function(server, store, Game, cardOptions, cardSuites) {
 			});
 		});
 
+		socket.on('removePendingGame', function(data) {
+			console.log('removePendingGame', data);
+
+			if (!data.gameId || !data.userId) {
+				console.log("Required fields not received!");
+				return;
+			}
+			Game.findOne({
+				id: data.gameId,
+				status: "pending"
+			}, function(err, game) {
+				if (err) return console.error(err);
+				if (!game) return console.error("Game to delete does not exist!");
+
+				store.getUserById(data.userId).then((user) => {
+					user = user[0];
+					if (!user) return console.error("User with ID " + data.userId + "does not exist!");
+
+					if(user.id != game.created_by_id){
+						return console.error("User was not this game creator!");
+					}
+					game.remove(function(err, game) {
+						if (err) return console.error(err);
+
+						returnPendingGames(io.sockets);
+
+					});
+
+				});
+			});
+		});
+
 
 		socket.on('startGame', function(data) {
 
@@ -386,7 +508,8 @@ module.exports = function(server, store, Game, cardOptions, cardSuites) {
 			}
 			//procura o jogo pelo id
 			Game.findOne({
-				id: data.gameId
+				id: data.gameId,
+				status: "pending"
 			}, function(err, game) {
 				if (err) return console.error(err);
 				if (game.status != 'pending') return console.error("Game is not pending!");
@@ -634,6 +757,11 @@ module.exports = function(server, store, Game, cardOptions, cardSuites) {
 					console.log('GAME');
 					console.log('GAME');*/
 				//	console.log(game);
+				if(!game) {
+					console.error("This Game does not exist!");
+					return;
+				}
+
 				console.log('currentPlayerId', game.currentPlayerId);
 				if (game.currentPlayerId != data.userId) {
 					console.error("It's not this user's turn to play!");
@@ -730,34 +858,30 @@ module.exports = function(server, store, Game, cardOptions, cardSuites) {
 				//se não houver cartas na mesa, então a primeira carta é o naipe do jogo
 				if (!hasCards) {
 					game.suiteInGame = data.clickedCard.cardSuite;
-				} else{
-					if((user.teamId == 1 && game.team1_cheating) ||
+				} else {
+					console.log('Cartas na mesa. Ver se está a fazer batota...');
+					if ((user.teamId == 1 && game.team1_cheating) ||
 						(user.teamId == 2 && game.team2_cheating)) {
 						//se ele jogar carta diferente do naipe da mesa
-						if(card.cardSuite != game.suiteInGame){
-					//procurar cartas do naipe da mesa na mao dele
-							console("A equipa já está a fazer batota! Passar à frente se fez batota...");
-						}else{
+						console.log("A equipa já está a fazer batota! Passar à frente se fez batota...");
+					} else {
+						if (card.cardSuite != game.suiteInGame) {
+							//procurar cartas do naipe da mesa na mao dele
 							for (var i = 0; i < user.cards.length; i++) {
 								var suiteCard = user.cards[i];
-								if(suiteCard.cardSuite == game.suiteInGame) {
+								if (suiteCard.cardSuite == game.suiteInGame) {
 									//BATOTA
-									console("Este sacana fez batota!");
-									if(user.teamId == 1) {
+									console.log("Este sacana fez batota!");
+									if (user.teamId == 1) {
 										game.team1_cheating = true;
-									}else{
+									} else {
 										game.team2_cheating = true;
 									}
 									break;
 								}
 
 							}
-
 						}
-
-
-
-
 					}
 
 
@@ -1151,48 +1275,11 @@ pontos aos jogadores da equipa vencedora. */
 							team2Points = 0;
 						}
 
-					
-					//debug
-					console.log('SOcketIO - TEAM1_POINTS = ')
-					console.log(team1Points)
-					console.log('SOcketIO - TEAM2_POINTS = ')
-					console.log(team2Points)
+					createFinishedGame(team1Points, team2Points, game, teamWinner,
+									0, 0);
 
-					var gameToCreate = {
-						id: game.id,
-						value: game.status,
-						team1_cardpoints: game.team1_cardpoints,
-						team2_cardpoints: game.team2_cardpoints,
-						team_winner: teamWinner,
-						team_desconfiou: false,
-						team_renunciou: false,
-						team1_points: team1Points,
-						team2_points: team2Points,
-						created_by: game.created_by_id,
-						deck_used: game.deck_used
-					}
 
-					var usersToUpdate = [];
 
-					for (var i = 0; i < game.users.length; i++) {
-						game.users[i]
-						var userTotalPoints = 0;
-						if (game.users[i].teamId == 1) {
-							userTotalPoints = team1Points;
-						} else {
-							userTotalPoints = team2Points;
-						}
-
-						usersToUpdate.push({
-							id: game.users[i].id,
-							total_points: userTotalPoints,
-							team_number: game.users[i].teamId
-						});
-					}
-
-					store.createGame(gameToCreate).then(() => {
-						store.updateUsersEndOfGame(usersToUpdate, game.id);
-					})
 				}
 
 
@@ -1215,9 +1302,113 @@ pontos aos jogadores da equipa vencedora. */
 
 		});
 
+		socket.on('suspect', function(data) {
+				console.log('ENTROU NO CANAL suspect!');
+				console.log("dados recebidos:");
+				console.log("gameId:", data.gameId);
+				console.log('userId:', data.userId);
+
+				if (!data.gameId || !data.userId) {
+					console.log("Required fields not received!");
+					return;
+				}
+				//veririfica se a socket tem a socketRoom, e se nao, junta-a à socket
+
+
+				Game.find({
+					id: data.gameId
+				}, function(err, game) {
+					var game = game[0];
+					var socketRoom = "game_" + game.id + "_user_" + data.userId;
+					if (!io.sockets.adapter.rooms[socketRoom] ||
+						!io.sockets.adapter.rooms[socketRoom][socket.id]) {
+						socket.join(socketRoom);
+					}
+					var user = null;
+					for (var i = 0; i < game.users.length; i++) {
+						user = game.users[i]
+						if (user.id == data.userId) {
+							break;
+						}
+					}
+
+					if (!user) {
+						console.error("User with id " + data.userId + " not in game!");
+						return;
+					}
+					var otherTeamCheated = null;
+					var userTeamId = user.teamId;
+					var otherTeamId = user.teamId == 1 ? 2 : 1;
+
+
+					if(userTeamId == 1) {
+						otherTeamCheated = game.team2_cheating;
+					}else{
+						otherTeamCheated = game.team1_cheating;
+					}
+
+					var teamWinner = 0;
+					var team_renunciou = 0;
+					if(otherTeamCheated){
+						console.log("Other Team Has Cheated!");
+						if(userTeamId == 1){
+							team1Points = 4;
+							team2Points = -4;
+							teamWinner = 1;
+							team_renunciou = 2;
+						}else {
+							team1Points = -4;
+							team2Points = 4;
+							teamWinner = 2;
+							team_renunciou = 1;
+						}
+					} else {
+						console.log("Other Team Has Not Cheated!");
+						if(userTeamId == 1){
+							team1Points = -4;
+							team2Points = 4;
+							teamWinner = 2;
+						}else {
+							team1Points = 4;
+							team2Points = -4;
+							teamWinner = 1;
+						}
+						
+					}
+					game.status = 'terminated';
+
+
+					createFinishedGame(team1Points, team2Points, game, teamWinner,
+						userTeamId, team_renunciou);
+
+					game.save(function(err, game) {
+						if (err) return console.error(err);
+						console.log("Game Updated and Saved!");
+						console.log(game);
+
+						for (var i = 0; i < game.users.length; i++) {
+							let user = game.users[i];
+							returnActiveGamesToRoom("game_" + game.id + "_user_" + user.id, user.id);
+						}
+
+					});
+
+
+
+
+
+
+
+			});
+
+		});
+
+
 
 		//ADICIONAR METODOS ANTES DISTO
 	});
+
+
 
 
 }
