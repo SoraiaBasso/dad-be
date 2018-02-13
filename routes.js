@@ -50,9 +50,9 @@ module.exports = function(app, transporter, store, passport) {
             to: req.body.email,
             subject: '"Sueca" Account Creation',
             text: 'Please, click the link to confirm your subscription.\n'+
-                  'http://localhost:7555/email-confirmation/'+id+'/'+confirmation_token,
+                  'http://46.101.25.53:8080/email-confirmation/'+id+'/'+confirmation_token,
             html: '<p>Please, click the link to confirm your subscription.</p>'+
-                  '<p><a href="http://localhost:7555/email-confirmation/'+id+'/'+confirmation_token+'">email confirmation link</a></p>'
+                  '<p><a href="http://46.101.25.53:8080/email-confirmation/'+id+'/'+confirmation_token+'">email confirmation link</a></p>'
 
 
             
@@ -135,9 +135,9 @@ module.exports = function(app, transporter, store, passport) {
             to: req.body.email,
             subject: 'Sueca Password Reset',
             text: 'Please, click the link to reset your password.\n'+
-                  'http://localhost:7555/password-reset/'+reset_password_token,
+                  'http://46.101.25.53:8080/password-reset/'+reset_password_token,
             html: '<p>Please, click the link to reset your password.</p>'+
-                  '<p><a href="http://localhost:7555/password-reset/'+reset_password_token+'">password reset link</a></p>'
+                  '<p><a href="http://46.101.25.53:8080/password-reset/'+reset_password_token+'">password reset link</a></p>'
 
           }
 
@@ -177,7 +177,8 @@ module.exports = function(app, transporter, store, passport) {
     console.log('API PASSWORD RESET - redirect to client');
     console.log(req.params.reset_password_token);
 
-    res.redirect('http://localhost:8080/#/passwordReset/'+req.params.reset_password_token);
+    res.redirect('http://165.227.238.36:8080/#/passwordReset/'+req.params.reset_password_token);
+    //res.redirect('http://localhost:8080/#/passwordReset/'+req.params.reset_password_token);
 
 /*
     console.log('API PASSWORD RESET - get email from table');

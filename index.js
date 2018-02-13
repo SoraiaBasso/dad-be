@@ -76,8 +76,8 @@ store.getPlatformEmail().then((email) => {
   });*/
 
 
-  server = app.listen(7555, () => {
-    console.log('Server running on http://localhost:7555')
+  server = app.listen(8080, () => {
+    console.log('Server running on http://localhost:8080')
   })
 
 
