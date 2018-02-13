@@ -41,21 +41,7 @@ return Promise.all([
       table.increments('id').primary();
       table.string('scope');
       table.boolean('is_default')
-    }),/*
-    knex.schema.alterTable('oauth_access_tokens', function(table) {
-  		table.foreign('client_id').references('oauth_clients.id').onDelete('CASCADE')
-	}),
-	knex.schema.alterTable('oauth_authorization_codes', function(table) {
-  		table.foreign('client_id').references('oauth_clients.id').onDelete('CASCADE');
-  		table.foreign('user_id').references('user.id').onDelete('CASCADE')
-	}),
-	knex.schema.alterTable('oauth_clients', function(table) {
-  		table.foreign('user_id').references('user.id').onDelete('CASCADE')
-	}),
-	knex.schema.alterTable('oauth_refresh_tokens', function(table) {
-  		table.foreign('client_id').references('oauth_clients.id').onDelete('CASCADE');
-  		table.foreign('user_id').references('user.id').onDelete('CASCADE')
-	}),*/      
+    }),      
   ]);
 };
 

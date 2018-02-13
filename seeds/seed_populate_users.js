@@ -253,48 +253,6 @@ exports.seed = function(knex, Promise) {
 
           return knex('user').insert(users).then(() => {
 
-           /* return knex('games').del()
-              .then(function() {
-                return knex('games').insert([{
-                    value: 'terminated',
-                    team1_cardpoints: 65,
-                    team2_cardpoints: 10,
-                    team_winner: 1,
-                    team1_points: 1,
-                    team2_points: 0,
-                    created_by: 3,
-                    deck_used: 1
-                  }, {
-                    value: 'terminated',
-                    team1_cardpoints: 91,
-                    team2_cardpoints: 30,
-                    team_winner: 1,
-                    team1_points: 2,
-                    team2_points: 0,
-                    created_by: 4,
-                    deck_used: 1
-                  }, {
-                    value: 'terminated',
-                    team1_cardpoints: 0,
-                    team2_cardpoints: 120,
-                    team_winner: 2,
-                    team1_points: 0,
-                    team2_points: 4,
-                    created_by: 3,
-                    deck_used: 1
-                  }, {
-                    value: 'terminated',
-                    team1_cardpoints: 60,
-                    team2_cardpoints: 60,
-                    team_winner: 0,
-                    team1_points: 0,
-                    team2_points: 0,
-                    created_by: 11,
-                    deck_used: 1
-                  },
-
-                ]);
-              });*/
           }); 
         });
       });

@@ -12,6 +12,7 @@ const User = require('./model/User.js').User;
 const Config = require('./model/Config.js').Config;
 
 
+var fs = require('fs');
 const fileUpload = require('express-fileupload');
 app.use(fileUpload());
 
@@ -33,7 +34,7 @@ passport = security.getPassport();
 var nodemailer = require('nodemailer');
 
 store.getPlatformEmail().then((email) => {
-  //
+  
   //console.log('EMAIL EMAIL EMAIL EMAIL EMAIL');
   console.log(email[0].platform_email);
   var transporter = nodemailer.createTransport({
@@ -47,8 +48,6 @@ store.getPlatformEmail().then((email) => {
       pass: 'secret*0D18'
     }
   });
-
-
 
   /*
   const mailOptions = {
@@ -68,13 +67,12 @@ store.getPlatformEmail().then((email) => {
   });
 
 
-  require('./routes.js')(app, transporter, store, passport);
+  require('./routes.js')(app, transporter, store, passport, fs, email[0].platform_email);
 
   //Rota para login
   /*app.post('/login', passport.authenticate('local'), function(req, res) {
     res.send(req.user);
   });*/
-
 
   server = app.listen(8080, () => {
     console.log('Server running on http://localhost:8080')
@@ -140,18 +138,8 @@ store.getPlatformEmail().then((email) => {
 
     var Game = mongoose.model('Game', gameSchema);
 
-    require('./socketio.js')(server, store, Game, cardOptions, cardSuites);
+    require('./socketio.js')(server, store, Game, cardOptions, cardSuites, fs);
 
-    /*
-      var silence = new Game({
-        name: 'Silence'
-      });
-      console.log(silence.name); // 'Silence'
-
-      silence.save(function (err, silence) {
-        if (err) return console.error(err);
-      });
-    */
   });
 
 

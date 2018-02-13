@@ -15,7 +15,6 @@ module.exports = function(cardOptions, cardSuites) {
     confirmation_token
   }) {
 
-
     console.log("Add user " + name + " with password " + password +
       ", email " + email + " nickname " + nickname + "confirmation token" + confirmation_token)
 
@@ -37,6 +36,7 @@ module.exports = function(cardOptions, cardSuites) {
     });
 
   };
+
   module.activateUser = function(userId) {
     return knex('user').where('id', '=', userId)
       .update({
@@ -44,9 +44,11 @@ module.exports = function(cardOptions, cardSuites) {
         confirmed: 1
       });
   };
+
   module.getPlatformEmail = function() {
     return knex('config').select('platform_email');
   };
+
   //savePasswordResetDetails
   module.savePasswordResetDetails = function(resetData) {
     return knex('password_resets')
@@ -55,43 +57,46 @@ module.exports = function(cardOptions, cardSuites) {
         token: resetData.token
       });
   };
+
   module.getEmailByTokenFromPasswordResets = function(token) {
     return knex('password_resets').select('email').where('token', '=', token);
   };
+
   module.removeResetToken = function(email) {
     return knex('password_resets')
       .where('email', email)
       .del();
   };
 
-
-
   module.getUsers = function() {
 
     return knex('user').select('id', 'name', 'email', 'nickname', 'blocked', 'admin', 'reason_blocked', 'reason_reactivated', 'total_points', 'total_games_played').from('user');
 
   };
+
   module.getUser = function(username) {
     return knex('user').select('id', 'name', 'email', 'nickname', 'password', 'admin', 'reason_blocked', 'reason_reactivated', 'total_points', 'total_games_played', 'blocked', 'confirmed')
       .from('user').where('nickname', '=', username)
       .orWhere('email', '=', username);
   };
+
   module.getUserById = function(id) {
     return knex('user').select('id', 'name', 'email', 'nickname', 'password', 'admin', 'reason_blocked', 'reason_reactivated', 'total_points', 'total_games_played', 'confirmation_token')
       .from('user').where('id', '=', id);
   };
+
   module.getUserByEmail = function(email) {
     return knex('user').select().where('email', '=', email);
   };
+
   module.getUserByToken = function(token) {
     return knex('user').select('id', 'name', 'email', 'nickname', 'password', 'admin').from('user').where('token', '=', token);
   };
-  //TODO isto esta hardcoded nao se se é preciso mudar pk nao sei se é suposto haver mais do que um email nesta 
-  //tabela
+ 
   module.getConfigDetails = function() {
     return knex('config').select('platform_email', 'platform_email_properties').from('config').where('id', '=', 1);
   };
-  //quando o user faz login, guarda o token na bd
+
   module.updateUserToken = function(id, token) {
 
     return knex('user').where('id', '=', id)
@@ -99,6 +104,7 @@ module.exports = function(cardOptions, cardSuites) {
         token: token
       });
   };
+
   module.editUser = function(user) {
     return knex('user').where('id', '=', user.id)
       .update({
@@ -107,6 +113,7 @@ module.exports = function(cardOptions, cardSuites) {
         email: user.email
       })
   };
+
   module.changeUserPassword = function(userId, password) {
     return bcrypt.hash(password, 10).then(function(hash) {
       return knex('user').where('id', '=', userId)
@@ -115,6 +122,7 @@ module.exports = function(cardOptions, cardSuites) {
         });
     });
   };
+
   module.editAdmin = function(user) {
     return knex('user').where('id', '=', user.id)
       .update({
@@ -129,16 +137,19 @@ module.exports = function(cardOptions, cardSuites) {
         password: password
       })
   };
+
   module.editAdminPassword = function(id, oldPassword, newPassword) {
     return knex('user').where('id', '=', id).andWhere('password', '=', oldPassword)
       .update({
         password: newPassword
       })
   };
+
   module.deleteUser = function(id) {
     return knex('user').where('id', '=', id).delete();
 
   };
+
   module.blockUser = function(id, reason_blocked) {
     console.log(id);
     return knex('user').where('id', '=', id).update({
@@ -148,6 +159,7 @@ module.exports = function(cardOptions, cardSuites) {
       reason_reactivated: ''
     });
   };
+
   module.unblockUser = function(id, reason_reactivated) {
     console.log(id);
     return knex('user').where('id', '=', id).update({
@@ -157,7 +169,8 @@ module.exports = function(cardOptions, cardSuites) {
       reason_blocked: ''
     });
   };
-  /************************************STATISTICAS************************************/
+
+  /*************************************************STATISTICS***********************************************/
 
   //Total de jogadores na plataforma
    module.getTotalNumberOfPlayers = function() {
@@ -172,53 +185,38 @@ module.exports = function(cardOptions, cardSuites) {
     return knex('games').count('id as count').where('value', '=', 'terminated');
 
   };
+
+  //top 5 jogadores com mais jogos
   module.getTopFiveByNumOfGames = function() {
 
     return knex('user').orderBy('total_games_played', 'desc').limit('5');
 
   };
+
+  //top 5 jogadores com mais pontos
   module.getTopFiveByPoints = function() {
 
     return knex('user').orderBy('total_points', 'desc').limit('5');
 
-  }; //TODO depois e criar tabela games e use games
+  }; 
+
+  //top 5 jogadores com melhor média
   module.getTopFiveByAverage = function() {
 
     return knex.raw('SELECT id as userId, nickname, total_points/total_games_played AS avg ' +
                             'FROM user '+
                             'ORDER BY avg desc '+
                             'LIMIT 5');
-
-
-    
-
-    //fazer uma subconsulta onde faço sum dos pontos de 1 jogador para tds os jogos que ja jogou
-    //dividir pelo num de jogos pa fazer  a media (ou usar simplemnte o avg)
-    //enviar os jogadores
-   /* return knex.select('*').avg('sumPoints').from(function() {
-                                                    this.sum('total_points as sumPoints')
-                                                    .from('user').join('game_user', 'user.id', 'game_user.user_id')
-                                                    .join('games', 'game_user.game_id', 'gams.id')
-                                                    .groupBy('sumPoints').as('t1')
-                                                    }) */
-
-   /*var subcolumn = knex.avg('salary')
-    .from('employee')
-    .whereRaw('dept_no = e.dept_no')
-    .as('avg_sal_dept');
-
-    knex.select('e.lastname', 'e.salary', subcolumn)
-    .from('employee as e')
-    .whereRaw('dept_no = e.dept_no') */
-
-    
+  
   }; 
+
+  //total de jogos de um user
   module.getUserTotalGamesPlayed = function(userId) {
     //contar os game_id cujo estado é terminated
     return knex('games').count('id as totalGamesPlayed').where('value', '=', 'terminated').andWhere('id', '=', userId);
 
   };
-  //TODO depois e criar tabela games e use games
+  //total de vitórias de um user
   module.getUserTotalWins = function(userId) {
 
     return knex.raw('SELECT count(*) as totalWins ' +
@@ -234,6 +232,8 @@ module.exports = function(cardOptions, cardSuites) {
                        .join('games', 'game_user.game_id', 'games.id')
                        .where('game_user.team_number', '=', 'games.team_winner');*/
   };
+
+  //total de derrotas de um user
   module.getUserTotalLosts = function(userId) {
 
     return knex.raw('SELECT count(*) as totalLosts ' +
@@ -245,6 +245,8 @@ module.exports = function(cardOptions, cardSuites) {
                             'AND u.id = ?;', [userId]);
 
   };
+
+  //total de empates de um user
   module.getUserTotalDraws = function(userId) {
 
     return knex.raw('SELECT count(*) as totalDraws ' +
@@ -255,6 +257,8 @@ module.exports = function(cardOptions, cardSuites) {
                             'AND u.id = ?;', [userId]);
 
   };
+
+  //total de pontos de um user
   module.getUserTotalPoints = function(userId) {
 
     return knex.raw('SELECT total_points as totalPoints ' +
@@ -262,6 +266,8 @@ module.exports = function(cardOptions, cardSuites) {
                             'WHERE id = ?;', [userId]);
 
   };
+
+  //média de pontos de um user
   module.getUserPointAverage = function(userId) {
 
     return knex.raw('SELECT total_points/total_games_played as pointAverage ' +
@@ -290,15 +296,49 @@ module.exports = function(cardOptions, cardSuites) {
   .orderBy(db.knex.raw("extract('hour' from t2.start_timestamp)"));*/
     
   };
-
+/*******************************************DECKS****************************************************/
   module.insertPathFile = function(pathFile, deckname) {
     return knex('decks').insert({
       name: deckname,
-      hidden_face_image_path: pathFile
+      hidden_face_image_path: pathFile,
+      active: 0
+    });
+  };
+  module.setCompleteDeck = function(deckId, isCompleteDeck) {
+    return knex('decks').where('id', '=', deckId).update({
+      complete: isCompleteDeck
+    });
+  };
+  module.setActiveDeck = function(deckId, isActiveDeck) {
+    return knex('decks').where('id', '=', deckId).update({
+      active: isActiveDeck
     });
   };
   module.getDecks = function() {
     return knex('decks').select();
+  };
+  module.getCompleteDecks = function() {
+    return knex('decks').select().where('complete', '=', true);
+  };
+  module.getDeck = function(deckId) {
+    return knex('decks').select().where('id', '=', deckId);
+  };
+  module.getDeckCards = function(deckId) {
+    return knex('cards').select().where('deck_id', '=', deckId);
+  };
+  module.getCard = function(deckId, suite, option) {
+    return knex('cards').select().where('deck_id', '=', deckId)
+    .andWhere('suite', '=', suite).andWhere('value', '=', option);
+  };
+  module.getCardsByPath = function(paths) {
+    var pathsAux = [];
+    for (var i = 0; i < paths.length; i++) {
+      if(paths[i]) {
+        pathsAux.push(paths[i]);
+      }
+    }
+    console.log(pathsAux);
+    return knex.select().from('cards').whereIn('path', pathsAux);
   };
   module.createNewGame = function(userId, deckId) {
     return knex('games').insert({
@@ -318,12 +358,9 @@ module.exports = function(cardOptions, cardSuites) {
   };
   module.createCards = function(filePaths, deckId) {
 
-
-    //value: Ace, 2, 3, 4, 5, 6, 7, 8, 9, 10, Jack, Queen, King
-    //suite: Club, Diamond, Heart, Spade
-    //deck_id
-    //path
-    let cards = [];
+    let cardsToCreate = [];
+    let cardsToUpdate = [];
+    let promises = [];
     for (let i = 0; i < filePaths.length; i++) {
       let card = {}
 
@@ -334,22 +371,49 @@ module.exports = function(cardOptions, cardSuites) {
         let filePathsIndex = a * cardOptions.length + i;
 
         if (filePaths[filePathsIndex] !== false) {
-          cards.push({
-            value: cardOptions[i],
-            suite: cardSuites[a],
-            deck_id: deckId,
-            path: filePaths[filePathsIndex]
+
+          var promise = module.getCard(deckId, cardSuites[a], cardOptions[i]).then((cards) => {
+            var oldCard = cards[0];
+            var newCard ={
+              value: cardOptions[i],
+              suite: cardSuites[a],
+              deck_id: deckId,
+              path: filePaths[filePathsIndex]
+            };
+
+            if(oldCard){
+              newCard.id = oldCard.id;
+              cardsToUpdate.push(newCard);
+            }else{
+              cardsToCreate.push(newCard);
+            }
           });
+          promises.push(promise);
         }
       }
-
     }
-    console.log("cards");
-    console.log(cards);
 
-    return knex('cards').insert(cards);
+    return Promise.all(promises).then(() => {
+      console.log("cardsToCreate");
+      console.log(cardsToCreate);
+      console.log("cardsToUpdate");
+      console.log(cardsToUpdate);
 
+      var updatePromises = [];
 
+      updatePromises.push(knex('cards').insert(cardsToCreate));
+
+      for (var i = 0; i < cardsToUpdate.length; i++) {
+        var cardToUpdate = cardsToUpdate[i];
+
+        var promise = knex('cards').where('id', '=', cardToUpdate.id).update({
+          path: cardToUpdate.path,
+        });
+        updatePromises.push(promise);
+
+      }
+      return Promise.all(updatePromises);
+    });
   };
   module.getCardsPath = function(deckId, owncards) {
 
@@ -362,15 +426,6 @@ module.exports = function(cardOptions, cardSuites) {
         whereCards += ' OR';
       }
     }
-
-
-    // return knex.select('path').from('cards').where('cards.deck_id', '=', deckId);
-    /*return knex.select('path').from('cards').where(
-    {
-      'cards.deck_id': deckId ,
-      'cards.suite': owncards.cardSuite,
-       'cards.value': owncards.cardValue
-    });*/
 
     return knex.select('value', 'suite', 'path').from('cards')
     .whereRaw(whereCards)
@@ -387,6 +442,16 @@ module.exports = function(cardOptions, cardSuites) {
     .where('id', '=', deckId);
 
 
+  };
+  module.removeCardsByDeckId = function(deckId) {
+    return knex('cards')
+      .where('deck_id', deckId)
+      .del();
+  };
+  module.removeDeck = function(deckId) {
+    return knex('decks')
+      .where('id', deckId)
+      .del();
   };
 
   module.createGame = function(game) {
@@ -414,8 +479,6 @@ module.exports = function(cardOptions, cardSuites) {
       return Promise.all(promises);
 
   };
-
-
-
+  
   return module;
 }

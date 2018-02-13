@@ -1,12 +1,9 @@
-module.exports = function(server, store, Game, cardOptions, cardSuites) {
+module.exports = function(server, store, Game, cardOptions, cardSuites, fs) {
 	/*var io = require('socket.io')(server);
 	 
 	 
 	 */
 	var io = require('socket.io')(server);
-	var express = require('express');
-	var app = express();
-	var fs = require('fs');
 
 	shuffle = function(a) {
 		var j, x, i;
@@ -33,8 +30,6 @@ module.exports = function(server, store, Game, cardOptions, cardSuites) {
 
 	filterActiveGamesByUser = function(games, userId) {
 
-
-		//console.log("ENTROU NO RETURN FILTER ACTIVE GAMES by user");
 		//console.log("ENTROU NO RETURN FILTER ACTIVE GAMES by user");
 
 		var activeGames = [];
@@ -68,14 +63,12 @@ module.exports = function(server, store, Game, cardOptions, cardSuites) {
 				delete currentGame.team1_cheating;
 				delete currentGame.team2_cheating;
 
-
 				activeGames.push(currentGame);
 			}
 		}
 
 		return activeGames;
 	}
-
 
 
 	returnActiveGames = function(sendTo, userId) {
@@ -108,7 +101,6 @@ module.exports = function(server, store, Game, cardOptions, cardSuites) {
 			activeGames = filterActiveGamesByUser(games, userId);
 
 			//console.log('ACTIVE GAMES DEPOIS DE FILTRADOS BY USER');
-
 			//console.log(activeGames);
 
 			io.to(sendToId).emit('activeGames', {
@@ -138,15 +130,12 @@ module.exports = function(server, store, Game, cardOptions, cardSuites) {
 		});
 	}
 
-
-
 	returnCardImages = function(sendTo, cards) {
 
 		/*	console.log('ENTROU NOreturnCardImages');
 			console.log('Cartas a enviar ao cliente');
 			console.log('Cartas a enviar ao cliente');
 			console.log(cards);*/
-
 
 		sendTo.emit('cardImages', {
 			cards: cards
@@ -159,16 +148,13 @@ module.exports = function(server, store, Game, cardOptions, cardSuites) {
 			id: gameId
 		}, function(err, game) {
 
-
 			var firstPlayer = game[0].users[Math.floor(Math.random() * game[0].users.length)];
-
 
 			sendTo.emit('firstPlayerId', {
 				firstPlayerId: firstPlayer.id
 			});
 		});
 	}
-
 
 	getCardsImages = function(cards, deckId) {
 
@@ -200,7 +186,6 @@ module.exports = function(server, store, Game, cardOptions, cardSuites) {
 		});
 
 	}
-
 
 	getHiddenFaceImage = function(deckId) {
 
@@ -270,22 +255,47 @@ module.exports = function(server, store, Game, cardOptions, cardSuites) {
 		io.sockets.in(room).emit('gameOver', {
 				game: game, teamWinner: teamWinner
 			});
-
-
 		}
+
 
 		store.createGame(gameToCreate).then(() => {
 			store.updateUsersEndOfGame(usersToUpdate, game.id);
-		})
+		});
 
+		Game.find({
+			status: "active"
+		}, function(err, games) {
+			if (err) return console.error(err);
 
+			var deckId = game.deck_used;
+			var isDeckActive = false;
 
+			for (var i = 0; i < games.length; i++) {
+				var deckUsed = games[i].deck_used;
+				console.log("Setting Deck Inactive!");		
+				console.log(deckUsed);		
+				console.log(deckId);		
+				console.log(deckUsed == deckId);		
+				console.log(games[i].id);		
+				console.log(game.id);		
+				console.log(games[i].id != game.id);		
+
+				if(deckUsed == deckId && games[i].id != game.id) {
+					isDeckActive = true; 
+					break;
+				}
+			}
+			if(!isDeckActive){			
+			console.log("Setting Deck Inactive!");		
+				store.setActiveDeck(deckId, 0).then(() => {
+						//Do Nothing
+					});
+			}
+
+		});
 
 
 	}
-
-
-
 
 	require('socketio-auth')(io, {
 		authenticate: function(socket, data, callback) {
@@ -320,17 +330,8 @@ module.exports = function(server, store, Game, cardOptions, cardSuites) {
 
 							}
 						}
-
-
 					}
-
-
-
-
 				});
-
-
-
 				return callback(null, true);
 			});
 		}
@@ -363,12 +364,22 @@ module.exports = function(server, store, Game, cardOptions, cardSuites) {
 		socket.on('createNewGame', function(data) {
 			//console.log('createNewGame');
 			//console.log(data);
-			store.getDecks().then((decks) => {
+			store.getCompleteDecks().then((decks) => {
 				if (!decks || decks.length == 0) {
 					console.log("No Decks!");
 					return;
 				}
+
 				var deck = decks[Math.floor(Math.random() * decks.length)];
+
+				console.log(deck);
+
+				if(!deck.active) {
+					store.setActiveDeck(deck.id, 1).then(() => {
+						//Do Nothing
+					});
+				}
+
 				//console.log("Chosen deck:", deck);
 				delete data.user.password;
 				delete data.user.token;
@@ -388,13 +399,6 @@ module.exports = function(server, store, Game, cardOptions, cardSuites) {
 				});
 
 				game.users.push(data.user);
-
-				/*
-								  socket.join('justin bieber fans');
-								  socket.broadcast.to('justin bieber fans').emit('new fan');
-								  io.sockets.in('rammstein fans').emit('new non-fan');
-				*/
-
 
 				game.save(function(err, game) {
 					if (err) return console.error(err);
@@ -426,6 +430,7 @@ module.exports = function(server, store, Game, cardOptions, cardSuites) {
 				status: "pending"
 			}, function(err, game) {
 				if (err) return console.error(err);
+				if (!game) return console.error("Game not Found!");
 
 				store.getUserById(data.userId).then((user) => {
 					user = user[0];
@@ -512,6 +517,7 @@ module.exports = function(server, store, Game, cardOptions, cardSuites) {
 				status: "pending"
 			}, function(err, game) {
 				if (err) return console.error(err);
+				if (!game) return console.error("Game not Found!");
 				if (game.status != 'pending') return console.error("Game is not pending!");
 				if (data.userId != game.created_by_id) return console.error("This user cannot start the game!");
 				store.getUserById(data.userId).then((user) => {
@@ -562,12 +568,6 @@ module.exports = function(server, store, Game, cardOptions, cardSuites) {
 						game.table[user.id] = null;
 						//faz um array de cartas para cada jogador (vai ser a mão do jogador)
 						user.cards = [];
-
-						/*
-						//preencher o array de cartas de cada user com 10 cartas
-						for (var j = 0; j < 10; j++) {
-							user.cards.push(cards.pop()); //pop vai buscar o ultimo elemento/objecto do array cards
-						}*/
 
 						//o primeiro jogador, escolhido aleatoriamente, fica a sul
 						if (user.id == firstPlayer.id) {
@@ -664,20 +664,16 @@ module.exports = function(server, store, Game, cardOptions, cardSuites) {
 						for (var i = 0; i < game.users.length; i++) {
 							let user = game.users[i];
 
+							console.log("returnActiveGamesToRoom");
+							console.log("game_" + game.id + "_user_" + user.id, user.id);
+
 							returnActiveGamesToRoom("game_" + game.id + "_user_" + user.id, user.id);
 						}
 
-
 						//devolve os pending games para todos
 						returnPendingGames(io.sockets);
-
-
 					});
-
-
-
 				});
-
 			});
 		});
 
@@ -697,42 +693,22 @@ module.exports = function(server, store, Game, cardOptions, cardSuites) {
 			var deckId = data.deckId;
 			var owncards = data.ownCards;
 
-
-
 			//IR AO STORE buscar o caminho da carta pretendida
 			store.getCardsPath(deckId, owncards).then((cards) => {
 				//console.log("CARTAS RECEBIDAS DO STORE:", cards);
 
 				//ir a pasta store buscar a imagem com esse caminho
-				//app.use(express.static(cards[0].path));
-
-
 				getHiddenFaceImage(deckId).then((hiddenFaceCard) => {
 
-
-
 					getCardsImages(cards, deckId).then((cardsToSend) => {
-						/*	console.log("cardsToSend")
-							console.log("cardsToSend")
-							console.log("cardsToSend")
-							console.log("cardsToSend")
-							console.log("cardsToSend")
-							console.log("cardsToSend")
-							console.log("cardsToSend")
-							console.log("cardsToSend")*/
+						
+							//console.log("cardsToSend")
 						cardsToSend.hiddenFaceImage = hiddenFaceCard.image.toString('base64');
 						//console.log("cardsToSend", cardsToSend)
 						socket.emit('cardImages', cardsToSend);
-
-
-
 					});
-
-
 				});
-
 			});
-
 		});
 
 		socket.on('updateGame', function(data) {
@@ -752,11 +728,9 @@ module.exports = function(server, store, Game, cardOptions, cardSuites) {
 			}, function(err, game) {
 				if (err) return console.error(err);
 				game = game[0];
-				/*	console.log('GAME');
-					console.log('GAME');
-					console.log('GAME');
-					console.log('GAME');*/
-				//	console.log(game);
+					
+					//console.log('GAME');
+					//console.log(game);
 				if(!game) {
 					console.error("This Game does not exist!");
 					return;
@@ -786,7 +760,6 @@ module.exports = function(server, store, Game, cardOptions, cardSuites) {
 					!io.sockets.adapter.rooms[socketRoom][socket.id]) {
 					socket.join(socketRoom);
 				}
-
 
 				console.log("Current User: ", user);
 				var cardCount = 0;
@@ -839,10 +812,6 @@ module.exports = function(server, store, Game, cardOptions, cardSuites) {
 					card = user.cards.splice(cardIndex, 1)[0];
 				}
 
-
-
-				console.log('TABLE ')
-				console.log('TABLE ')
 				console.log('TABLE ')
 				console.log(game.table)
 
@@ -879,13 +848,9 @@ module.exports = function(server, store, Game, cardOptions, cardSuites) {
 									}
 									break;
 								}
-
 							}
 						}
 					}
-
-
-					//se encontrou, batota
 				}
 
 				//Por carta na mesa
@@ -915,8 +880,6 @@ module.exports = function(server, store, Game, cardOptions, cardSuites) {
 				}
 				console.log("Game Updated!");
 
-
-
 				game.markModified('users');
 				game.markModified('table');
 				game.markModified('suiteInGame');
@@ -927,18 +890,10 @@ module.exports = function(server, store, Game, cardOptions, cardSuites) {
 
 					for (var i = 0; i < game.users.length; i++) {
 						let user = game.users[i];
-
-
 						returnActiveGamesToRoom("game_" + game.id + "_user_" + user.id, user.id);
 					}
-
 				});
-
-
-
 			});
-
-
 		});
 
 		socket.on('cleanTable', function(data) {
@@ -951,13 +906,10 @@ module.exports = function(server, store, Game, cardOptions, cardSuites) {
 				console.log("Required fields not received!");
 				return;
 			}
-			//veririfica se a socket tem a socketRoom, e se nao, junta-a à socket
-
-
+			
 			Game.find({
 				id: data.gameId
 			}, function(err, game) {
-
 
 				//console.log('Game to clean');
 				//console.log('Game to clean');
@@ -1025,12 +977,7 @@ module.exports = function(server, store, Game, cardOptions, cardSuites) {
 							cardPoints: cardPoints,
 							isTrump: isTrump
 						});
-						/*trumpCards[i] = {userId: user.id, 
-									userTeam: user.teamId, 
-									suite: cardFromTable.cardSuite, 
-									value: cardFromTable.cardValue,
-									cardPoints: cardPoints,
-									isTrump: isTrump}; */
+						
 					} else if (cardFromTable.cardSuite == game.suiteInGame) {
 						suiteInGameCards.push({
 							userId: user.id,
@@ -1040,12 +987,7 @@ module.exports = function(server, store, Game, cardOptions, cardSuites) {
 							cardPoints: cardPoints,
 							isTrump: isTrump
 						});
-						/*	suiteInGameCards[i] = {userId: user.id, 
-										userTeam: user.teamId, 
-										suite: cardFromTable.cardSuite, 
-										value: cardFromTable.cardValue,
-										cardPoints: cardPoints,
-										isTrump: isTrump}; */
+						
 					} else {
 						normalCards.push({
 							userId: user.id,
@@ -1064,13 +1006,6 @@ module.exports = function(server, store, Game, cardOptions, cardSuites) {
 						cardPoints: cardPoints,
 						isTrump: isTrump
 					});
-
-					/*• Ás: 11 pontos;
-				• 7: 10 pontos;
-				• rei: 4 pontos;
-				• valete: 3 pontos;
-				• rainha: 2 pontos;
-				• 6, 5, 4, 3, 2: 0 pontos */
 				}
 
 				console.log('TRUMP CARDS FROM TABLE')
@@ -1129,14 +1064,9 @@ module.exports = function(server, store, Game, cardOptions, cardSuites) {
 					}
 				}
 				console.log('higherCard')
-				console.log('higherCard')
-				console.log('higherCard')
-				console.log('higherCard')
 				console.log(higherCard)
 
 				game.currentPlayerId = higherCard.userId;
-
-
 
 				var roundPoints = 0;
 				for (var i = 0; i < allCards.length; i++) {
@@ -1153,23 +1083,23 @@ module.exports = function(server, store, Game, cardOptions, cardSuites) {
 
 				}
 
-				/*
-								for (var i = 0; i < game.users.length; i++) {
-									var user = game.users[i];
-									if(user.teamId == higherCard.userTeam){
-										var teamId = higherCard.userTeam;
-										//actualizar os pontos das cartas da equipa que ganhou esta rodada
-										if(teamId == 1){
-											game.team1_cardpoints += roundPoints;
-											game.markModified('game.team1_cardpoints');
-										} else {
-											game.team2_cardpoints += roundPoints;
-											game.markModified('game.team2_cardpoints');
-										}
-										
-									}
+/*
+				for (var i = 0; i < game.users.length; i++) {
+					var user = game.users[i];
+					if(user.teamId == higherCard.userTeam){
+						var teamId = higherCard.userTeam;
+						//actualizar os pontos das cartas da equipa que ganhou esta rodada
+						if(teamId == 1){
+							game.team1_cardpoints += roundPoints;
+							game.markModified('game.team1_cardpoints');
+						} else {
+							game.team2_cardpoints += roundPoints;
+							game.markModified('game.team2_cardpoints');
+						}
+						
+					}
 
-								}*/
+				}*/
 				console.log('TEAM 1 CARD POINTS')
 				console.log(game.team1_cardpoints)
 				console.log('TEAM 2 CARD POINTS')
@@ -1198,7 +1128,6 @@ module.exports = function(server, store, Game, cardOptions, cardSuites) {
 					}
 				}
 
-
 				if (gameOver) {
 					game.status = 'terminated';
 
@@ -1207,33 +1136,8 @@ module.exports = function(server, store, Game, cardOptions, cardSuites) {
 						0;
 						console.log('TEAM WINNER')
 						console.log(teamWinner)
-					/*1 ponto cada, se o total da pontuação (das cartas) da equipa >=61 e <=90;
-o 2 pontos cada, se o total da pontuação (das cartas) da equipa >= 91 e <=119;
-o 4 ponto cada, se o total da pontuação (das cartas) da equipa = 120;
-• Em caso de empate ou derrota (sem renuncia) os jogadores recebem 0 pontos;
-• Em caso de derrota devido a uma renuncia confirmada, são descontados 4 pontos aos
-jogadores da equipa que fez a renuncia e são atribuídos 4 pontos aos jogadores da equipa
-vencedora (que declarou desconfiança);
-• Em caso de derrota devido a uma desconfiança não confirmada, são descontados 4 pontos
-aos jogadores da equipa que declarou desconfiança (não confirmada) e são atribuídos 4
-pontos aos jogadores da equipa vencedora. */
-
-					/*var teamWinnerPoints = 0;
-					var teamWinnerCardPoints = teamWinner == 1 ? game.team1_cardpoints :
-						teamWinner == 2 ? game.team2_cardpoints : 60;
-
-						if (61 = < teamWinnerCardPoints <= 90) {
-							teamWinnerPoints = 1;
-						} else if (91 = < teamWinnerCardPoints <= 119) {
-							teamWinnerPoints = 2;
-						} else if (teamWinnerCardPoints == 120) {
-							teamWinnerPoints = 4;
-						} else if (teamWinnerCardPoints == 60) {
-							teamWinnerPoints = 0;
-							
-						} */
 					
-
+				
 					var team1Points = 0;
 					var team2Points = 0;
 
@@ -1278,8 +1182,6 @@ pontos aos jogadores da equipa vencedora. */
 					createFinishedGame(team1Points, team2Points, game, teamWinner,
 									0, 0);
 
-
-
 				}
 
 
@@ -1295,10 +1197,7 @@ pontos aos jogadores da equipa vencedora. */
 					}
 
 				});
-
 			});
-
-
 
 		});
 
@@ -1377,7 +1276,6 @@ pontos aos jogadores da equipa vencedora. */
 					}
 					game.status = 'terminated';
 
-
 					createFinishedGame(team1Points, team2Points, game, teamWinner,
 						userTeamId, team_renunciou);
 
@@ -1393,19 +1291,11 @@ pontos aos jogadores da equipa vencedora. */
 
 					});
 
-
-
-
-
-
-
 			});
 
 		});
 
-
-
-		//ADICIONAR METODOS ANTES DISTO
+		//END END END
 	});
 
 

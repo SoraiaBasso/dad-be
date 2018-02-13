@@ -87,7 +87,7 @@ module.exports = function(store) {
     }));
 
     passport.use('admin', new CustomStrategy(
-        function(req, done) { //done: método que vem a seguir (request => auth(bearer) => auth(admin) => metodo da API). Neste caso o done é o metodo da API
+        function(req, done) { 
             const token = req.token;
 
             if (!token) {
