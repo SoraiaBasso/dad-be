@@ -281,11 +281,11 @@ module.exports = function(cardOptions, cardSuites) {
 
     console.log('Entrou no getGamesHistoryData');
 
-    return knex.select(knex.raw("id, extract(DAY from g.created_at) as day"))
+    return knex.select(knex.raw("extract(DAY from g.created_at) as day"))
       .count('* as count')
       .from('games as g')
-      .groupByRaw("day")
-      .orderBy(knex.raw("day"));
+      .groupByRaw("extract(DAY from g.created_at)")
+      .orderBy(knex.raw("extract(DAY from g.created_at)"));
 /*
 
       var qry = db.knex
